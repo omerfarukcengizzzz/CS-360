@@ -5,11 +5,13 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     // Database Version
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
 
     // Database Name
     private static final String DATABASE_NAME = "WarehousePro.db";
@@ -65,13 +67,33 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         onCreate(db);
     }
 
+    /**
+     * Hash password using SHA-256 for security
+     */
+    private String hashPassword(String password) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hashedBytes = md.digest(password.getBytes());
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hashedBytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            // Log error in production
+            e.printStackTrace();
+            // Fallback to plain text if SHA-256 not available
+            return password;
+        }
+    }
+
     // Add new user
     public boolean addUser(String username, String password) {
         SQLiteDatabase db = this.getWritableDatabase();
 
         ContentValues values = new ContentValues();
         values.put(COL_USERNAME, username);
-        values.put(COL_PASSWORD, password);
+        values.put(COL_PASSWORD, hashPassword(password));
 
         // Inserting Row
         long result = db.insert(TABLE_USERS, null, values);
@@ -87,7 +109,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         String query = "SELECT * FROM " + TABLE_USERS + " WHERE "
                 + COL_USERNAME + " = ? AND " + COL_PASSWORD + " = ?";
 
-        Cursor cursor = db.rawQuery(query, new String[]{username, password});
+        Cursor cursor = db.rawQuery(query, new String[]{username, hashPassword(password)});
         int count = cursor.getCount();
         cursor.close();
         db.close();

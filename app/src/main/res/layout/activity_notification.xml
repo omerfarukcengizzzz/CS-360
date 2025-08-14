@@ -14,7 +14,7 @@
         android:layout_height="120dp"
         android:layout_marginTop="60dp"
         android:src="@android:drawable/ic_dialog_email"
-        android:tint="?attr/colorPrimary"
+        app:tint="?attr/colorPrimary"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
@@ -87,7 +87,7 @@
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:src="@android:drawable/ic_dialog_alert"
-                    android:tint="#FF6B6B"
+                    app:tint="#FF6B6B"
                     android:layout_marginEnd="12dp" />
 
                 <TextView
@@ -111,7 +111,7 @@
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:src="@android:drawable/ic_menu_agenda"
-                    android:tint="#4ECDC4"
+                    app:tint="#4ECDC4"
                     android:layout_marginEnd="12dp" />
 
                 <TextView
@@ -134,7 +134,7 @@
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:src="@android:drawable/star_on"
-                    android:tint="#FFD93D"
+                    app:tint="#FFD93D"
                     android:layout_marginEnd="12dp" />
 
                 <TextView
