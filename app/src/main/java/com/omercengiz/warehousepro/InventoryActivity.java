@@ -20,9 +20,11 @@ import androidx.core.content.ContextCompat;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import java.util.ArrayList;
 import java.util.List;
+import androidx.core.app.ActivityCompat;
 
 public class InventoryActivity extends AppCompatActivity implements InventoryAdapter.OnItemUpdateListener {
 
+    private static final int SMS_PERMISSION_REQUEST_CODE = 123;
     private RecyclerView inventoryRecyclerView;
     private InventoryAdapter inventoryAdapter;
     private List<InventoryItem> inventoryList;
@@ -194,15 +196,43 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
     public void onQuantityZero(String itemName) {
         // Check if SMS permission is granted
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.SEND_SMS)
-                == PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED) {
 
-            // Get SMS notification preference
-            SharedPreferences prefs = getSharedPreferences("NotificationPrefs", MODE_PRIVATE);
-            boolean smsEnabled = prefs.getBoolean("sms_enabled", false);
+            // Request SMS permission
+            ActivityCompat.requestPermissions(this,
+                    new String[]{android.Manifest.permission.SEND_SMS},
+                    SMS_PERMISSION_REQUEST_CODE);
 
-            if (smsEnabled) {
-                // Send SMS notification
-                sendSMSNotification(itemName);
+            // Store item name to send SMS after permission granted
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putString("pending_sms_item", itemName);
+            editor.apply();
+
+            Toast.makeText(this, itemName + " is out of stock! Requesting SMS permission...",
+                    Toast.LENGTH_LONG).show();
+        } else {
+            sendSMSNotification(itemName);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == SMS_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted, send pending SMS
+                String pendingItem = sharedPreferences.getString("pending_sms_item", "");
+                if (!pendingItem.isEmpty()) {
+                    sendSMSNotification(pendingItem);
+                    // Clear pending item
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.remove("pending_sms_item");
+                    editor.apply();
+                }
+            } else {
+                Toast.makeText(this, "SMS permission denied. You won't receive stock alerts.",
+                        Toast.LENGTH_LONG).show();
             }
         }
     }
