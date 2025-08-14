@@ -106,12 +106,19 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
         Cursor cursor = databaseHelper.getAllItems();
 
         if (cursor != null && cursor.moveToFirst()) {
+            // Get column indices safely
+            int idIndex = cursor.getColumnIndexOrThrow("item_id");
+            int nameIndex = cursor.getColumnIndexOrThrow("item_name");
+            int weightIndex = cursor.getColumnIndexOrThrow("weight");
+            int quantityIndex = cursor.getColumnIndexOrThrow("quantity");
+            int notesIndex = cursor.getColumnIndexOrThrow("notes");
+
             do {
-                int id = cursor.getInt(cursor.getColumnIndex("item_id"));
-                String name = cursor.getString(cursor.getColumnIndex("item_name"));
-                String weight = cursor.getString(cursor.getColumnIndex("weight"));
-                int quantity = cursor.getInt(cursor.getColumnIndex("quantity"));
-                String notes = cursor.getString(cursor.getColumnIndex("notes"));
+                int id = cursor.getInt(idIndex);
+                String name = cursor.getString(nameIndex);
+                String weight = cursor.getString(weightIndex);
+                int quantity = cursor.getInt(quantityIndex);
+                String notes = cursor.getString(notesIndex);
 
                 InventoryItem item = new InventoryItem(id, name, weight, quantity, notes);
                 inventoryList.add(item);
