@@ -42,7 +42,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Column Headers -->
+    <!-- Column Headers (Fixed Alignment) -->
     <LinearLayout
         android:id="@+id/headerLayout"
         android:layout_width="match_parent"
@@ -89,12 +89,13 @@
             android:textSize="14sp"
             android:gravity="center" />
 
+        <!-- Fixed Delete Column Header -->
         <TextView
             android:layout_width="40dp"
             android:layout_height="wrap_content"
-            android:text="Delete"
+            android:text="Del"
             android:textStyle="bold"
-            android:textSize="14sp"
+            android:textSize="12sp"
             android:gravity="center" />
 
     </LinearLayout>

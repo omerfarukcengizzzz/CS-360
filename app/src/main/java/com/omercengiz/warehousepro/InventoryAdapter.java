@@ -1,6 +1,8 @@
 package com.omercengiz.warehousepro;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,7 +12,9 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * InventoryAdapter - RecyclerView adapter for displaying inventory items
@@ -23,6 +27,11 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
     private List<InventoryItem> filteredItems; // For search functionality
     private OnItemActionListener listener;
     private DatabaseHelper databaseHelper;
+
+    // Toast management to prevent spam
+    private Toast currentToast;
+    private Handler toastHandler;
+    private Map<Integer, Runnable> pendingToasts;
 
     /**
      * Interface for handling item actions (callbacks to parent activity)
@@ -46,6 +55,10 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
         this.filteredItems = new ArrayList<>(this.inventoryItems);
         this.listener = listener;
         this.databaseHelper = new DatabaseHelper(context);
+
+        // Initialize toast management
+        this.toastHandler = new Handler(Looper.getMainLooper());
+        this.pendingToasts = new HashMap<>();
     }
 
     @NonNull
@@ -152,7 +165,8 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
                         listener.onQuantityChanged(item, newQuantity);
                     }
 
-                    showToast("Quantity increased to " + newQuantity);
+                    // Show debounced toast
+                    showDebouncedToast(item.getId(), "Updated: " + item.getName() + " → " + newQuantity);
                 } else {
                     showToast("Failed to update quantity");
                 }
@@ -180,16 +194,17 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
                             }
                         }
 
+                        // Show appropriate message
                         if (newQuantity == 0) {
                             showToast("⚠️ " + item.getName() + " is now out of stock!");
                         } else {
-                            showToast("Quantity decreased to " + newQuantity);
+                            showDebouncedToast(item.getId(), "Updated: " + item.getName() + " → " + newQuantity);
                         }
                     } else {
                         showToast("Failed to update quantity");
                     }
                 } else {
-                    showToast("Quantity cannot be less than 0");
+                    showToast("Quantity is already 0");
                 }
             });
 
@@ -197,6 +212,11 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
             btnDelete.setOnClickListener(v -> {
                 // Show confirmation before deleting
                 showDeleteConfirmation(item);
+            });
+
+            // Quantity click - edit quantity directly
+            itemQuantity.setOnClickListener(v -> {
+                showEditQuantityDialog(item);
             });
 
             // Item click - show details or edit
@@ -211,6 +231,93 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
                 showToast("Item: " + item.getName() + "\nStatus: " + item.getStatusText());
                 return true;
             });
+        }
+
+        /**
+         * Show edit quantity dialog
+         * @param item InventoryItem to edit
+         */
+        private void showEditQuantityDialog(InventoryItem item) {
+            android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(context);
+            builder.setTitle("Edit Quantity - " + item.getName());
+
+            // Create input field
+            final android.widget.EditText input = new android.widget.EditText(context);
+            input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+            input.setText(String.valueOf(item.getQuantity()));
+            input.setSelection(input.getText().length()); // Place cursor at end
+            input.setHint("Enter new quantity");
+
+            // Set padding for better appearance
+            int padding = (int) (16 * context.getResources().getDisplayMetrics().density);
+            input.setPadding(padding, padding, padding, padding);
+
+            builder.setView(input);
+
+            builder.setPositiveButton("Update", (dialog, which) -> {
+                String newQuantityStr = input.getText().toString().trim();
+
+                if (newQuantityStr.isEmpty()) {
+                    showToast("Please enter a quantity");
+                    return;
+                }
+
+                try {
+                    int newQuantity = Integer.parseInt(newQuantityStr);
+
+                    if (newQuantity < 0) {
+                        showToast("Quantity cannot be negative");
+                        return;
+                    }
+
+                    if (newQuantity > 100000) {
+                        showToast("Quantity seems too large");
+                        return;
+                    }
+
+                    // Update database
+                    if (databaseHelper.updateItemQuantity(item.getId(), newQuantity)) {
+                        int oldQuantity = item.getQuantity();
+                        item.setQuantity(newQuantity);
+                        updateQuantityDisplay(item);
+
+                        // Notify listener
+                        if (listener != null) {
+                            listener.onQuantityChanged(item, newQuantity);
+
+                            // Check if quantity reached zero
+                            if (newQuantity == 0 && oldQuantity > 0) {
+                                listener.onZeroQuantityReached(item);
+                            }
+                        }
+
+                        // Show feedback
+                        if (newQuantity == 0) {
+                            showToast("⚠️ " + item.getName() + " is now out of stock!");
+                        } else {
+                            showToast("Updated: " + item.getName() + " → " + newQuantity);
+                        }
+                    } else {
+                        showToast("Failed to update quantity");
+                    }
+
+                } catch (NumberFormatException e) {
+                    showToast("Please enter a valid number");
+                }
+            });
+
+            builder.setNegativeButton("Cancel", null);
+
+            android.app.AlertDialog dialog = builder.create();
+            dialog.show();
+
+            // Auto-focus and show keyboard
+            input.requestFocus();
+            android.view.inputmethod.InputMethodManager imm =
+                    (android.view.inputmethod.InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.showSoftInput(input, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+            }
         }
 
         /**
@@ -250,19 +357,60 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
                     listener.onItemDeleted(item);
                 }
 
-                showToast("Item deleted: " + item.getName());
+                showToast("Deleted: " + item.getName());
             } else {
                 showToast("Failed to delete item");
             }
         }
+    }
 
-        /**
-         * Show toast message
-         * @param message Message to display
-         */
-        private void showToast(String message) {
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+    // ================== TOAST MANAGEMENT ==================
+
+    /**
+     * Show a debounced toast that prevents spam
+     * @param itemId Unique identifier for the item (to group toasts)
+     * @param message Message to show
+     */
+    private void showDebouncedToast(int itemId, String message) {
+        // Cancel any pending toast for this item
+        Runnable existingToast = pendingToasts.get(itemId);
+        if (existingToast != null) {
+            toastHandler.removeCallbacks(existingToast);
         }
+
+        // Create new toast runnable
+        Runnable newToast = () -> {
+            // Cancel current toast if showing
+            if (currentToast != null) {
+                currentToast.cancel();
+            }
+
+            // Show new toast
+            currentToast = Toast.makeText(context, message, Toast.LENGTH_SHORT);
+            currentToast.show();
+
+            // Remove from pending
+            pendingToasts.remove(itemId);
+        };
+
+        // Store and schedule the toast
+        pendingToasts.put(itemId, newToast);
+        toastHandler.postDelayed(newToast, 300); // 300ms delay to debounce
+    }
+
+    /**
+     * Show immediate toast (for errors and important messages)
+     * @param message Message to display
+     */
+    private void showToast(String message) {
+        // Cancel current toast
+        if (currentToast != null) {
+            currentToast.cancel();
+        }
+
+        // Show new toast immediately
+        currentToast = Toast.makeText(context, message, Toast.LENGTH_SHORT);
+        currentToast.show();
     }
 
     // ================== ADAPTER METHODS ==================
@@ -375,5 +523,23 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
     public void refreshData() {
         List<InventoryItem> freshData = databaseHelper.getAllInventoryItems();
         updateItems(freshData);
+    }
+
+    /**
+     * Clean up resources
+     */
+    public void cleanup() {
+        // Cancel all pending toasts
+        if (toastHandler != null) {
+            for (Runnable toast : pendingToasts.values()) {
+                toastHandler.removeCallbacks(toast);
+            }
+            pendingToasts.clear();
+        }
+
+        // Cancel current toast
+        if (currentToast != null) {
+            currentToast.cancel();
+        }
     }
 }

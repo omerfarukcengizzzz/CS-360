@@ -15,7 +15,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     // Database constants
     private static final String DATABASE_NAME = "WarehousePro.db";
-    private static final int DATABASE_VERSION = 2;
+    private static final int DATABASE_VERSION = 3; //
     private static final String TAG = "DatabaseHelper";
 
     // Users table
@@ -62,36 +62,90 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onCreate(SQLiteDatabase db) {
         try {
+            Log.d(TAG, "Creating database tables...");
+
             // Create tables
             db.execSQL(CREATE_USERS_TABLE);
             db.execSQL(CREATE_INVENTORY_TABLE);
 
+            Log.d(TAG, "Tables created successfully");
+
             // Insert default admin user
             insertDefaultUser(db);
 
-            Log.d(TAG, "Database tables created successfully");
+            // Insert sample inventory items for testing
+            insertSampleData(db);
+
+            Log.d(TAG, "Database setup completed successfully");
         } catch (Exception e) {
-            Log.e(TAG, "Error creating database: " + e.getMessage());
+            Log.e(TAG, "Error creating database: " + e.getMessage(), e);
         }
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        Log.d(TAG, "Upgrading database from version " + oldVersion + " to " + newVersion);
+
         // Drop existing tables and create new ones
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_USERS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_INVENTORY);
+
+        // Recreate tables
         onCreate(db);
+
+        Log.d(TAG, "Database upgrade completed");
     }
 
     // Helper method to insert default admin user
     private void insertDefaultUser(SQLiteDatabase db) {
-        ContentValues values = new ContentValues();
-        values.put(COLUMN_USERNAME, "admin");
-        values.put(COLUMN_PASSWORD, hashPassword("1234"));
-        values.put(COLUMN_EMAIL, "admin@warehousepro.com");
+        try {
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_USERNAME, "admin");
+            values.put(COLUMN_PASSWORD, hashPassword("1234"));
+            values.put(COLUMN_EMAIL, "admin@warehousepro.com");
 
-        db.insert(TABLE_USERS, null, values);
-        Log.d(TAG, "Default admin user created");
+            long result = db.insert(TABLE_USERS, null, values);
+            if (result != -1) {
+                Log.d(TAG, "Default admin user created successfully");
+            } else {
+                Log.e(TAG, "Failed to create default admin user");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating default user: " + e.getMessage(), e);
+        }
+    }
+
+    // Helper method to insert sample inventory data
+    private void insertSampleData(SQLiteDatabase db) {
+        try {
+            Log.d(TAG, "Inserting sample inventory data...");
+
+            // Sample items
+            String[][] sampleItems = {
+                    {"Cardboard Boxes", "2.5", "50", "Standard shipping boxes"},
+                    {"Bubble Wrap Roll", "1.2", "25", "Protective packaging material"},
+                    {"Packing Tape", "0.8", "100", "Heavy duty sealing tape"},
+                    {"Shipping Labels", "0.1", "500", "Adhesive shipping labels"},
+                    {"Warehouse Trolley", "15.0", "5", "Heavy duty transport trolley"}
+            };
+
+            for (String[] item : sampleItems) {
+                ContentValues values = new ContentValues();
+                values.put(COLUMN_ITEM_NAME, item[0]);
+                values.put(COLUMN_ITEM_WEIGHT, Double.parseDouble(item[1]));
+                values.put(COLUMN_ITEM_QUANTITY, Integer.parseInt(item[2]));
+                values.put(COLUMN_ITEM_NOTES, item[3]);
+
+                long result = db.insert(TABLE_INVENTORY, null, values);
+                if (result != -1) {
+                    Log.d(TAG, "Sample item added: " + item[0]);
+                }
+            }
+
+            Log.d(TAG, "Sample data insertion completed");
+        } catch (Exception e) {
+            Log.e(TAG, "Error inserting sample data: " + e.getMessage(), e);
+        }
     }
 
     // Password hashing for security
@@ -138,7 +192,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 return false;
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error creating user: " + e.getMessage());
+            Log.e(TAG, "Error creating user: " + e.getMessage(), e);
             return false;
         } finally {
             db.close();
@@ -163,7 +217,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             return isAuthenticated;
 
         } catch (Exception e) {
-            Log.e(TAG, "Error authenticating user: " + e.getMessage());
+            Log.e(TAG, "Error authenticating user: " + e.getMessage(), e);
             return false;
         } finally {
             db.close();
@@ -185,7 +239,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             return exists;
 
         } catch (Exception e) {
-            Log.e(TAG, "Error checking if user exists: " + e.getMessage());
+            Log.e(TAG, "Error checking if user exists: " + e.getMessage(), e);
             return false;
         } finally {
             db.close();
@@ -199,6 +253,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getWritableDatabase();
 
         try {
+            Log.d(TAG, "Adding inventory item: " + name + ", Weight: " + weight + ", Quantity: " + quantity + ", Notes: " + notes);
+
             ContentValues values = new ContentValues();
             values.put(COLUMN_ITEM_NAME, name);
             values.put(COLUMN_ITEM_WEIGHT, weight);
@@ -208,14 +264,14 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             long result = db.insert(TABLE_INVENTORY, null, values);
 
             if (result != -1) {
-                Log.d(TAG, "Inventory item added: " + name);
+                Log.d(TAG, "Inventory item added successfully: " + name + " with ID: " + result);
                 return true;
             } else {
                 Log.e(TAG, "Failed to add inventory item: " + name);
                 return false;
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error adding inventory item: " + e.getMessage());
+            Log.e(TAG, "Error adding inventory item: " + e.getMessage(), e);
             return false;
         } finally {
             db.close();
@@ -249,7 +305,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             Log.d(TAG, "Retrieved " + items.size() + " inventory items");
 
         } catch (Exception e) {
-            Log.e(TAG, "Error getting inventory items: " + e.getMessage());
+            Log.e(TAG, "Error getting inventory items: " + e.getMessage(), e);
         } finally {
             db.close();
         }
@@ -278,7 +334,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 return false;
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error updating item quantity: " + e.getMessage());
+            Log.e(TAG, "Error updating item quantity: " + e.getMessage(), e);
             return false;
         } finally {
             db.close();
@@ -302,7 +358,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 return false;
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error deleting inventory item: " + e.getMessage());
+            Log.e(TAG, "Error deleting inventory item: " + e.getMessage(), e);
             return false;
         } finally {
             db.close();
@@ -336,7 +392,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             cursor.close();
 
         } catch (Exception e) {
-            Log.e(TAG, "Error getting zero quantity items: " + e.getMessage());
+            Log.e(TAG, "Error getting zero quantity items: " + e.getMessage(), e);
         } finally {
             db.close();
         }
@@ -371,7 +427,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             cursor.close();
 
         } catch (Exception e) {
-            Log.e(TAG, "Error searching inventory items: " + e.getMessage());
+            Log.e(TAG, "Error searching inventory items: " + e.getMessage(), e);
         } finally {
             db.close();
         }
