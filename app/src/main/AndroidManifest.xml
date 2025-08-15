@@ -17,24 +17,40 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.OmerCengizWarehousePro">
+
+        <!-- Registration Activity -->
+        <activity
+            android:name=".RegistrationActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity" />
+
+        <!-- Add Item Activity -->
         <activity
             android:name=".AddItemActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:parentActivityName=".InventoryActivity" />
+
+        <!-- Main Activity (Login Screen) -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Inventory Activity -->
         <activity
             android:name=".InventoryActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:parentActivityName=".MainActivity" />
+
+        <!-- Notification Activity (SMS Permissions) -->
         <activity
             android:name=".NotificationActivity"
             android:exported="false" />
+
     </application>
 
 </manifest>
