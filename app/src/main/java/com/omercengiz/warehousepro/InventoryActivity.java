@@ -4,6 +4,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.Editable;
@@ -26,6 +27,12 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
     private InventoryAdapter inventoryAdapter;
     private List<InventoryItem> inventoryItems;
     private String currentUsername;
+    private SharedPreferences preferences;
+
+    // Keys for tracking user actions
+    private static final String PREFS_NAME = "WarehouseProPrefs";
+    private static final String KEY_FIRST_LOGIN = "first_login_";
+    private static final String KEY_LAST_WELCOME_SHOWN = "last_welcome_shown";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +41,9 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
 
         // Get username from intent
         currentUsername = getIntent().getStringExtra("USERNAME");
+
+        // Initialize preferences
+        preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
         // Initialize database helper
         databaseHelper = new DatabaseHelper(this);
@@ -52,6 +62,9 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
 
         // Load inventory data
         loadInventoryData();
+
+        // Show welcome message only on first login
+        showWelcomeMessageIfNeeded();
     }
 
     private void initializeViews() {
@@ -118,13 +131,40 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
             // Update empty state
             updateEmptyState();
 
-            // Show welcome message
-            if (currentUsername != null) {
-                Toast.makeText(this, "Welcome to Inventory, " + currentUsername + "!", Toast.LENGTH_SHORT).show();
-            }
-
         } catch (Exception e) {
             Toast.makeText(this, "Error loading inventory: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /**
+     * Show welcome message only when appropriate
+     */
+    private void showWelcomeMessageIfNeeded() {
+        if (currentUsername == null) return;
+
+        // Check if this is the user's first login
+        boolean isFirstLogin = preferences.getBoolean(KEY_FIRST_LOGIN + currentUsername, true);
+
+        // Check when we last showed a welcome (to avoid spam)
+        long lastWelcomeShown = preferences.getLong(KEY_LAST_WELCOME_SHOWN, 0);
+        long currentTime = System.currentTimeMillis();
+        long timeSinceLastWelcome = currentTime - lastWelcomeShown;
+
+        // Only show welcome if:
+        // 1. It's first login, OR
+        // 2. It's been more than 24 hours since last welcome
+        if (isFirstLogin || timeSinceLastWelcome > 24 * 60 * 60 * 1000) {
+            String message = isFirstLogin ?
+                    "Welcome to Warehouse Pro, " + currentUsername + "!" :
+                    "Welcome back, " + currentUsername + "!";
+
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+
+            // Update preferences
+            preferences.edit()
+                    .putBoolean(KEY_FIRST_LOGIN + currentUsername, false)
+                    .putLong(KEY_LAST_WELCOME_SHOWN, currentTime)
+                    .apply();
         }
     }
 
@@ -152,7 +192,7 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
         // This is handled automatically by the adapter
         // Update empty state after deletion
         updateEmptyState();
-        Toast.makeText(this, "Item deleted successfully", Toast.LENGTH_SHORT).show();
+        // Removed the "Item deleted successfully" toast since adapter already shows it
     }
 
     @Override
@@ -172,13 +212,31 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
     private void showItemDetails(InventoryItem item) {
         // Show item details in a toast for now
         // Later this could open an edit dialog or detail activity
-        String details = "Item: " + item.getName() +
-                "\nWeight: " + item.getFormattedWeight() +
-                "\nQuantity: " + item.getQuantity() +
-                "\nStatus: " + item.getStatusText() +
-                "\nNotes: " + item.getDisplayNotes();
+        String details = "📦 " + item.getName() +
+                "\n⚖️ " + item.getFormattedWeight() +
+                "\n📊 Qty: " + item.getQuantity() +
+                "\n📝 " + item.getDisplayNotes() +
+                "\n🔔 " + item.getStatusText();
 
         Toast.makeText(this, details, Toast.LENGTH_LONG).show();
+    }
+
+    private void triggerLowStockNotification(InventoryItem item) {
+        // Check if we should send SMS notification
+        // This will integrate with SMS functionality
+        String message = "⚠️ OUT OF STOCK: " + item.getName();
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+
+        // Show SMS confirmation dialog (less intrusive than before)
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle("Stock Alert")
+                .setMessage(item.getName() + " is out of stock. Send SMS alert?")
+                .setPositiveButton("Send", (dialog, which) -> {
+                    sendSMSNotification(item);
+                })
+                .setNegativeButton("Skip", null)
+                .setIcon(android.R.drawable.ic_dialog_info) // Less alarming icon
+                .show();
     }
 
     private void sendSMSNotification(InventoryItem item) {
@@ -186,7 +244,7 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
 
         // Check SMS permission first
         if (!smsManager.isSMSPermissionGranted()) {
-            Toast.makeText(this, "SMS permission not granted. Please enable in settings.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "SMS permission needed for alerts", Toast.LENGTH_SHORT).show();
 
             // Navigate to SMS permission screen
             Intent intent = new Intent(this, NotificationActivity.class);
@@ -201,29 +259,12 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
             // Update UI on main thread
             runOnUiThread(() -> {
                 if (smsResult) {
-                    Toast.makeText(this, "SMS alert sent for " + item.getName(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "✅ SMS sent for " + item.getName(), Toast.LENGTH_SHORT).show();
                 } else {
-                    Toast.makeText(this, "Failed to send SMS alert", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "❌ SMS failed", Toast.LENGTH_SHORT).show();
                 }
             });
         });
-    }
-
-    private void triggerLowStockNotification(InventoryItem item) {
-        // Show immediate UI feedback
-        String message = "⚠️ LOW STOCK ALERT: " + item.getName() + " quantity is now 0!";
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-
-        // Show alert dialog
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
-        builder.setTitle("Stock Alert!")
-                .setMessage(item.getName() + " is now out of stock. Send SMS notification?")
-                .setPositiveButton("Send SMS", (dialog, which) -> {
-                    sendSMSNotification(item);
-                })
-                .setNegativeButton("Skip", null)
-                .setIcon(android.R.drawable.ic_dialog_alert)
-                .show();
     }
 
     // ================== Activity Lifecycle ==================
@@ -235,14 +276,15 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
         if (requestCode == 100 && resultCode == RESULT_OK) {
             // New item was added, refresh the inventory
             loadInventoryData();
-            Toast.makeText(this, "Item added successfully!", Toast.LENGTH_SHORT).show();
+            // Show brief success message (less intrusive)
+            Toast.makeText(this, "✅ Item added", Toast.LENGTH_SHORT).show();
         }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        // Refresh data when returning to this activity
+        // Refresh data when returning to this activity (but no welcome message)
         loadInventoryData();
     }
 
@@ -251,6 +293,9 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
         super.onDestroy();
         if (databaseHelper != null) {
             databaseHelper.close();
+        }
+        if (inventoryAdapter != null) {
+            inventoryAdapter.cleanup();
         }
     }
 
