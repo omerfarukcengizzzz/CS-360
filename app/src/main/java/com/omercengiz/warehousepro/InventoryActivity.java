@@ -4,6 +4,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.content.Intent;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -180,18 +181,47 @@ public class InventoryActivity extends AppCompatActivity implements InventoryAda
         Toast.makeText(this, details, Toast.LENGTH_LONG).show();
     }
 
+    private void sendSMSNotification(InventoryItem item) {
+        SMSManagerHelper smsManager = new SMSManagerHelper(this);
+
+        // Check SMS permission first
+        if (!smsManager.isSMSPermissionGranted()) {
+            Toast.makeText(this, "SMS permission not granted. Please enable in settings.", Toast.LENGTH_LONG).show();
+
+            // Navigate to SMS permission screen
+            Intent intent = new Intent(this, NotificationActivity.class);
+            startActivity(intent);
+            return;
+        }
+
+        // Send SMS in background to avoid blocking UI
+        AsyncTask.execute(() -> {
+            boolean smsResult = smsManager.sendLowStockAlert(item);
+
+            // Update UI on main thread
+            runOnUiThread(() -> {
+                if (smsResult) {
+                    Toast.makeText(this, "SMS alert sent for " + item.getName(), Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "Failed to send SMS alert", Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
+    }
+
     private void triggerLowStockNotification(InventoryItem item) {
-        // Check if we should send SMS notification
-        // This will integrate with your SMS functionality
+        // Show immediate UI feedback
         String message = "⚠️ LOW STOCK ALERT: " + item.getName() + " quantity is now 0!";
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
 
-        // TODO: Integrate with SMS notification system
-        // For now, just show a prominent notification
+        // Show alert dialog
         android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
         builder.setTitle("Stock Alert!")
-                .setMessage(item.getName() + " is now out of stock. Consider reordering immediately.")
-                .setPositiveButton("Got it", null)
+                .setMessage(item.getName() + " is now out of stock. Send SMS notification?")
+                .setPositiveButton("Send SMS", (dialog, which) -> {
+                    sendSMSNotification(item);
+                })
+                .setNegativeButton("Skip", null)
                 .setIcon(android.R.drawable.ic_dialog_alert)
                 .show();
     }

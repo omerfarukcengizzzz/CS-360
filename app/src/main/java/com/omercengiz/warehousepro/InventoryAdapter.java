@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import android.os.AsyncTask;
 
 /**
  * InventoryAdapter - RecyclerView adapter for displaying inventory items
@@ -27,6 +28,7 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
     private List<InventoryItem> filteredItems; // For search functionality
     private OnItemActionListener listener;
     private DatabaseHelper databaseHelper;
+    private SMSManagerHelper smsManager;
 
     // Toast management to prevent spam
     private Toast currentToast;
@@ -55,6 +57,7 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
         this.filteredItems = new ArrayList<>(this.inventoryItems);
         this.listener = listener;
         this.databaseHelper = new DatabaseHelper(context);
+        this.smsManager = new SMSManagerHelper(context);
 
         // Initialize toast management
         this.toastHandler = new Handler(Looper.getMainLooper());
@@ -541,5 +544,11 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
         if (currentToast != null) {
             currentToast.cancel();
         }
+
+        // Cleanup SMS manager
+        if (smsManager != null) {
+            smsManager.cleanup();
+        }
     }
+
 }
